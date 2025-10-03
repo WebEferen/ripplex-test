@@ -26,14 +26,7 @@ const viteLogger = {
 		const text = args.map(a => (typeof a === 'string' ? a : (a && a.message) || String(a))).join(' ');
 		const lower = text.toLowerCase();
 		const isHmr = /(hmr|hot|reload|updated|page reload|full reload|changed)/.test(lower);
-		if (isHmr) {
-			const now = process.hrtime.bigint();
-			const deltaMs = lastHmrStartNs ? Number((now - lastHmrStartNs) / 1000000n) : null;
-			const timeStr = deltaMs != null ? colors.dim(` +${deltaMs}ms`) : '';
-			const fileStr = lastHmrFile ? ` ${colors.gray(lastHmrFile)}` : '';
-			console.log(`${colors.yellow('HMR')} ${colors.white(text)}${fileStr}${timeStr}`);
-			return;
-		}
+		if (isHmr) return;
 		console.log(text);
 	},
 	warn(...args) { console.warn(colors.yellow(args.map(String).join(' '))); },
@@ -51,20 +44,26 @@ const vite = await createViteServer({
 	customLogger: viteLogger
 });
 viteReadyNs = process.hrtime.bigint();
+
 vite.watcher.on('change', (file) => {
-    lastHmrStartNs = process.hrtime.bigint();
-    lastHmrFile = file;
-    console.log(`${colors.green('[DEV]')} ${colors.white('Changed')} ${colors.gray(file)}`);
+	lastHmrStartNs = process.hrtime.bigint();
+	const relFile = '/' + path.relative(ROOT_DIR, file).split(path.sep).join('/');
+	lastHmrFile = relFile;
+	console.log(`${colors.green('UPDATE')} ${colors.gray(relFile)}`);
 });
+
 vite.watcher.on('add', (file) => {
-    lastHmrStartNs = process.hrtime.bigint();
-    lastHmrFile = file;
-    console.log(`${colors.green('[DEV]')} ${colors.white('Added')} ${colors.gray(file)}`);
+	lastHmrStartNs = process.hrtime.bigint();
+	const relFile = '/' + path.relative(ROOT_DIR, file).split(path.sep).join('/');
+	lastHmrFile = relFile;
+	console.log(`${colors.green('ADD')} ${colors.gray(relFile)}`);
 });
+
 vite.watcher.on('unlink', (file) => {
-    lastHmrStartNs = process.hrtime.bigint();
-    lastHmrFile = file;
-    console.log(`${colors.green('[DEV]')} ${colors.white('Unlinked')} ${colors.gray(file)}`);
+	lastHmrStartNs = process.hrtime.bigint();
+	const relFile = '/' + path.relative(ROOT_DIR, file).split(path.sep).join('/');
+	lastHmrFile = relFile;
+	console.log(`${colors.green('REMOVE')} ${colors.gray(relFile)}`);
 });
 
 // Serve static files from public directory
@@ -193,6 +192,7 @@ const pageRoutes = getPageRoutes();
 for (const route of pageRoutes) {
 	app.get(route.path, async (req, res) => {
 		try {
+			const reqStartNs = process.hrtime.bigint();
 			const PACKAGE_ROOT = path.resolve(__dirname, '..');
 			const cwdIndex = path.join(ROOT_DIR, 'index.html');
 			const pkgIndex = path.join(PACKAGE_ROOT, 'index.html');
@@ -213,67 +213,37 @@ for (const route of pageRoutes) {
 				}
 			}
 
-			const absoluteFilePath = route.filePath;
-			const source = fs.readFileSync(absoluteFilePath, 'utf-8');
-
-			function detectDirective(src) {
-				const content = src.replace(/^\uFEFF/, '');
-				const lines = content.split('\n');
-				let inBlockComment = false;
-				for (const raw of lines) {
-					let line = raw.trim();
-					if (inBlockComment) {
-						if (line.includes('*/')) inBlockComment = false;
-						continue;
-					}
-					if (line.startsWith('/*')) {
-						if (!line.includes('*/')) inBlockComment = true;
-						continue;
-					}
-					if (line === '' || line.startsWith('//')) continue;
-					if (/^(['"])use client\1;?$/.test(line)) return 'client';
-					if (/^(['"])use server\1;?$/.test(line)) return 'server';
-					return null;
-				}
-				return null;
-			}
-			const boundary = detectDirective(source);
-			const effectiveBoundary = boundary === 'client' ? 'client' : 'server';
-
 			const props = { ...(req.params || {}), ...middlewareProps };
 			let head = '';
 			let body = '';
 
 			const clientRoutePath = '/' + path.relative(ROOT_DIR, route.filePath).split(path.sep).join('/');
 
-			if (effectiveBoundary !== 'client') {
-				if (effectiveBoundary === 'server') {
-					if (source.includes('track(')) {
-						throw new Error("'use server' components cannot use tracked values. Move reactive code into a 'use client' component.");
-					}
-				}
+			const { render } = await vite.ssrLoadModule('ripple/server');
+			const module = await vite.ssrLoadModule(clientRoutePath);
+			const Component = module.default || module[Object.keys(module)[0]];
 
-				const { render } = await vite.ssrLoadModule('ripple/server');
-				const module = await vite.ssrLoadModule(clientRoutePath);
-				const Component = module.default || module[Object.keys(module)[0]];
-
-				if (!Component) {
-					throw new Error(`No component found in ${route.filePath}`);
-				}
-
-				const rendered = await render(Component, { props });
-				head = rendered.head;
-				body = rendered.body;
+			if (!Component) {
+				throw new Error(`No component found in ${route.filePath}`);
 			}
 
+			const rendered = await render(Component, { props });
+			head = rendered.head;
+			body = rendered.body;
+
 			const propsJson = JSON.stringify(props);
-			const runtimeScript = `<script>window.__RIPPLE={routePath:${JSON.stringify(clientRoutePath)},boundary:${JSON.stringify(effectiveBoundary)},routeProps:${propsJson}};<\/script>`;
+			const runtimeScript = `<script>window.__RIPPLE={routePath:${JSON.stringify(clientRoutePath)},routeProps:${propsJson}};<\/script>`;
 
 			const html = transformedTemplate
 				.replace(`<!--ssr-head-->`, `${head}\n${runtimeScript}`)
 				.replace(`<!--ssr-body-->`, body);
 
-			res.writeHead(200, { 'Content-Type': 'text/html' }).end(html);
+			res.writeHead(200, { 'Content-Type': 'text/html' });
+			const nowNs = process.hrtime.bigint();
+			const deltaMs = Number((nowNs - reqStartNs) / 1000000n);
+			const isDynamic = route.path.includes(':');
+			console.log(`${colors.white(req.method)} ${colors.gray(req.url)} ${colors.white('→')} ${colors.gray(clientRoutePath)} ${colors.dim(`[${isDynamic ? 'dynamic' : 'static'}]`)} ${colors.dim(`+${deltaMs}ms`)}`);
+			return res.end(html);
 		} catch (error) {
 			console.error('Page render error:', error);
 			res.writeHead(500, { 'Content-Type': 'text/html' });
@@ -291,28 +261,6 @@ app.listen(PORT, () => {
 	const modeBadge = mode === 'production' ? colors.green(' Production ') : colors.gray(' Development ');
 	const header = `\n${colors.bold(colors.cyan('RippleX'))} ${colors.dim('🌊')}\n\n${colors.white('Local:')} ${colors.green(`http://localhost:${PORT}`)}\n${colors.white('Mode:')} ${modeBadge}\n`;
 
-	function detectDirectiveForRoute(route) {
-		try {
-			const absoluteFilePath = path.join(__dirname, route.filePath);
-			const src = fs.readFileSync(absoluteFilePath, 'utf-8');
-			const content = src.replace(/^\uFEFF/, '');
-			const lines = content.split('\n');
-			let inBlock = false;
-			for (const raw of lines) {
-				let line = raw.trim();
-				if (inBlock) { if (line.includes('*/')) inBlock = false; continue; }
-				if (line.startsWith('/*')) { if (!line.includes('*/')) inBlock = true; continue; }
-				if (line === '' || line.startsWith('//')) continue;
-				if (/^(['"])use client\1;?$/.test(line)) return 'client';
-				if (/^(['"])use server\1;?$/.test(line)) return 'server';
-				return null;
-			}
-			return null;
-		} catch {
-			return null;
-		}
-	}
-
 	const pagesLines = [];
 	pagesLines.push(colors.bold('Pages'));
 	if (pageRoutes.length === 0) {
@@ -320,9 +268,8 @@ app.listen(PORT, () => {
 	} else {
 		pageRoutes.forEach((r, i) => {
 			const isLast = i === pageRoutes.length - 1;
-			const directive = detectDirectiveForRoute(r);
-			const effective = directive === 'client' ? 'client' : 'server';
-			const tag = effective === 'client' ? colors.gray('[client]') : colors.gray('[server]');
+			const isDynamic = r.path.includes(':');
+			const tag = isDynamic ? colors.gray('[dynamic]') : colors.gray('[static]');
 			pagesLines.push(`${isLast ? bullet : branch} ${colors.white(r.path)} ${colors.dim(tag)}`);
 		});
 	}
