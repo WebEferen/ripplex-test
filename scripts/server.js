@@ -279,12 +279,24 @@ for (const route of pageRoutes) {
 			head = rendered.head;
 			body = rendered.body;
 
-			const propsJson = JSON.stringify(props);
-			const runtimeScript = `<script>window.__RIPPLE={routePath:${JSON.stringify(clientRoutePath)},routeProps:${propsJson}};<\/script>`;
+			// Create RIPPLE data object with proper JSON serialization
+			const rippleData = {
+				routePath: clientRoutePath,
+				routeProps: props
+			};
+			const runtimeScript = `<script>window.__RIPPLE=${JSON.stringify(rippleData)};<\/script>`;
+
+			// Inline critical CSS to avoid FOUC
+			let criticalCss = '';
+			const globalCssPath = path.join(ROOT_DIR, 'public', 'global.css');
+			if (fs.existsSync(globalCssPath)) {
+				const cssContent = fs.readFileSync(globalCssPath, 'utf-8');
+				criticalCss = `<style>${cssContent}</style>`;
+			}
 
 			let html = transformedTemplate;
 			// Inject SSR head just before </head>
-			html = html.replace(/<\/head>/i, `${head}\n${runtimeScript}\n</head>`);
+			html = html.replace(/<\/head>/i, `${criticalCss}\n${head}\n${runtimeScript}\n</head>`);
 			// Inject SSR body into the #root element
 			html = html.replace(/(<div\s+id="root"[^>]*>)([\s\S]*?)(<\/div>)/i, `$1${body}$3`);
 

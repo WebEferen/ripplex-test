@@ -10,25 +10,106 @@
 
 		<script type="module">
 			import { mount } from 'ripple';
-			const { routePath, boundary, routeProps } = window.__RIPPLE || {};
 
-			if (!routePath) {
-				console.error('No routePath found in window.__RIPPLE');
-			} else {
+			// Client-side router for SPA-like navigation
+			let currentComponent = null;
+
+			async function navigate(url, pushState = true) {
 				try {
-					const module = await import(/* @vite-ignore */ routePath);
+					// Fetch the new page HTML
+					const response = await fetch(url);
+					if (!response.ok) throw new Error('Navigation failed');
+
+					const html = await response.text();
+
+					// Extract __RIPPLE data from the response
+					// Look for the script tag containing window.__RIPPLE
+					const rippleMatch = html.match(/window\.__RIPPLE=(.+?);<\/script>/);
+					if (!rippleMatch) {
+						console.error('No RIPPLE data found in response');
+						throw new Error('No RIPPLE data found');
+					}
+
+					let rippleData;
+					try {
+						rippleData = JSON.parse(rippleMatch[1]);
+					} catch (parseErr) {
+						console.error('Failed to parse RIPPLE data. Extracted:', rippleMatch[1]);
+						throw new Error('Invalid RIPPLE data: ' + parseErr.message);
+					}
+
+					// Update browser history
+					if (pushState) {
+						window.history.pushState({ url, rippleData }, '', url);
+					}
+
+					// Update __RIPPLE global
+					window.__RIPPLE = rippleData;
+
+					// Load and mount the new component
+					const module = await import(/* @vite-ignore */ rippleData.routePath);
 					const Component = module.default || module[Object.keys(module)[0]];
 
-					if (Component) {
-						mount(Component, { props: routeProps, target: document.getElementById('root') });
-					} else {
-						console.error('No component found in module:', routePath);
+					// Unmount old component if exists
+					if (currentComponent) {
+						document.getElementById('root').innerHTML = '';
 					}
+
+					// Mount new component
+					currentComponent = mount(Component, {
+						props: rippleData.routeProps,
+						target: document.getElementById('root')
+					});
 				} catch (err) {
-					console.error('Failed to load or mount component:', err);
-					document.getElementById('root').innerHTML = '<h1>Error loading page</h1><pre>' + err.message + '</pre>';
+					console.error('Navigation error:', err);
+					// Fallback to full page reload
+					window.location.href = url;
 				}
 			}
+
+			// Intercept link clicks
+			document.addEventListener('click', (e) => {
+				const link = e.target.closest('a');
+				if (!link) return;
+
+				const href = link.getAttribute('href');
+				if (!href || href.startsWith('#') || href.startsWith('http') || href.startsWith('//')) return;
+
+				e.preventDefault();
+				navigate(href);
+			});
+
+			// Handle browser back/forward
+			window.addEventListener('popstate', (e) => {
+				if (e.state && e.state.url) {
+					navigate(e.state.url, false);
+				}
+			});
+
+			// Initial mount
+			(async () => {
+				const rippleData = window.__RIPPLE;
+				if (!rippleData?.routePath) {
+					console.error('No routePath found in window.__RIPPLE');
+					return;
+				}
+
+				const module = await import(/* @vite-ignore */ rippleData.routePath);
+				const Component = module.default || module[Object.keys(module)[0]];
+
+				if (Component) {
+					currentComponent = mount(Component, {
+						props: rippleData.routeProps,
+						target: document.getElementById('root')
+					});
+
+					// Store initial state
+					window.history.replaceState({
+						url: window.location.pathname,
+						rippleData
+					}, '');
+				}
+			})();
 		</script>
 	</body>
 </html>
