@@ -12,10 +12,23 @@
 			import { mount } from 'ripple';
 			const { routePath, boundary, routeProps } = window.__RIPPLE || {};
 
-			const module = await import(/* @vite-ignore */ routePath);
-			const Component = module.default || module[Object.keys(module)[0]];
+			if (!routePath) {
+				console.error('No routePath found in window.__RIPPLE');
+			} else {
+				try {
+					const module = await import(/* @vite-ignore */ routePath);
+					const Component = module.default || module[Object.keys(module)[0]];
 
-			if (Component) mount(Component, { props: routeProps, target: document.getElementById('root') });
+					if (Component) {
+						mount(Component, { props: routeProps, target: document.getElementById('root') });
+					} else {
+						console.error('No component found in module:', routePath);
+					}
+				} catch (err) {
+					console.error('Failed to load or mount component:', err);
+					document.getElementById('root').innerHTML = '<h1>Error loading page</h1><pre>' + err.message + '</pre>';
+				}
+			}
 		</script>
 	</body>
 </html>

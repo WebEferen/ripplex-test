@@ -163,29 +163,65 @@ const app = polka();
 // Serve static files
 app.use(serveStatic);
 
-// Use Vite middleware
-app.use(vite.middlewares);
+// Body parser middleware for API routes
+app.use((req, res, next) => {
+	if (req.url.startsWith('/api') && ['POST', 'PUT', 'PATCH'].includes(req.method)) {
+		let body = '';
+		req.on('data', chunk => { body += chunk.toString(); });
+		req.on('end', () => {
+			try {
+				req.body = body ? JSON.parse(body) : {};
+			} catch (e) {
+				req.body = body;
+			}
+			next();
+		});
+	} else {
+		next();
+	}
+});
 
-// Register API routes
+// Register API routes BEFORE Vite middleware to prevent Vite from serving raw file content
 const apiRoutes = getApiRoutes();
 routesScannedNs = process.hrtime.bigint();
 for (const route of apiRoutes) {
-	app.get(route.path, async (req, res) => {
-		try {
-			const handler = await import(route.filePath);
-			if (handler.default) {
-				await handler.default(req, res);
-			} else {
+	// Handle all HTTP methods for API routes
+	const methods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'];
+
+	methods.forEach(method => {
+		app.add(method, route.path, async (req, res) => {
+			try {
+				// Use Vite's module loading with cache busting for HMR support
+				const timestamp = Date.now();
+				const handler = await vite.ssrLoadModule(`${route.filePath}?t=${timestamp}`);
+
+				if (handler.default) {
+					await handler.default(req, res);
+				} else if (handler[method.toUpperCase()]) {
+					// Support named exports like: export function get(req, res) {}
+					await handler[method.toUpperCase()](req, res);
+				} else {
+					res.writeHead(500, { 'Content-Type': 'application/json' });
+					res.end(JSON.stringify({ error: 'No default export or method handler in API route' }));
+				}
+			} catch (error) {
+				console.error('API route error:', error);
 				res.writeHead(500, { 'Content-Type': 'application/json' });
-				res.end(JSON.stringify({ error: 'No default export in API route' }));
+				res.end(JSON.stringify({ error: error.message, stack: error.stack }));
 			}
-		} catch (error) {
-			console.error('API route error:', error);
-			res.writeHead(500, { 'Content-Type': 'application/json' });
-			res.end(JSON.stringify({ error: error.message }));
-		}
+		});
 	});
 }
+
+// Use Vite middleware but skip API routes
+app.use((req, res, next) => {
+	// Skip Vite middleware for API routes - let them be handled by route handlers
+	if (req.url.startsWith('/api/')) {
+		return next();
+	}
+	// Pass everything else to Vite
+	vite.middlewares(req, res, next);
+});
 
 // Register page routes
 const pageRoutes = getPageRoutes();
@@ -227,7 +263,19 @@ for (const route of pageRoutes) {
 				throw new Error(`No component found in ${route.filePath}`);
 			}
 
-			const rendered = await render(Component, { props });
+			// Check if this is a client-only component
+			const fileContent = fs.readFileSync(route.filePath, 'utf-8');
+			const isClientOnly = /['"]use client['"]/.test(fileContent);
+
+			let rendered;
+			if (isClientOnly) {
+				// For client-only components, don't SSR - just send empty initial state
+				rendered = { head: '', body: '' };
+			} else {
+				// Server-side render the component
+				rendered = await render(Component, { props });
+			}
+
 			head = rendered.head;
 			body = rendered.body;
 
