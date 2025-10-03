@@ -234,9 +234,11 @@ for (const route of pageRoutes) {
 			const propsJson = JSON.stringify(props);
 			const runtimeScript = `<script>window.__RIPPLE={routePath:${JSON.stringify(clientRoutePath)},routeProps:${propsJson}};<\/script>`;
 
-			const html = transformedTemplate
-				.replace(`<!--ssr-head-->`, `${head}\n${runtimeScript}`)
-				.replace(`<!--ssr-body-->`, body);
+			let html = transformedTemplate;
+			// Inject SSR head just before </head>
+			html = html.replace(/<\/head>/i, `${head}\n${runtimeScript}\n</head>`);
+			// Inject SSR body into the #root element
+			html = html.replace(/(<div\s+id="root"[^>]*>)([\s\S]*?)(<\/div>)/i, `$1${body}$3`);
 
 			res.writeHead(200, { 'Content-Type': 'text/html' });
 			const nowNs = process.hrtime.bigint();
