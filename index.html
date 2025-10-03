@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>RippleX</title>
+		<!--ssr-head-->
+	</head>
+	<body>
+		<div id="root"><!--ssr-body--></div>
+
+		<script type="module">
+			import { mount } from 'ripple';
+			const { routePath, boundary, routeProps } = window.__RIPPLE || {};
+
+			const module = await import(/* @vite-ignore */ routePath);
+			const Component = module.default || module[Object.keys(module)[0]];
+
+			if (Component) mount(Component, { props: routeProps, target: document.getElementById('root') });
+		</script>
+	</body>
+</html>

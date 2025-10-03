@@ -1,0 +1,31 @@
+{
+  "name": "ripplex",
+  "version": "1.0.0",
+  "description": "RippleX is a Vite plugin for building server-side rendered (SSR) and static site generation (SSG) applications with Ripple.",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "bin": {
+    "ripplex": "bin/ripplex.js"
+  },
+  "exports": {
+    "./config": {
+      "types": "./types/config.d.ts",
+      "default": "./vite.config.js"
+    }
+  },
+  "keywords": ["ripplex", "ripple", "vite", "vite-plugin", "vite-plugin-ripple", "server", "client", "ssr", "ssg", "ssr-only", "ssg-only", "ssr-only-plugin", "ssg-only-plugin", "ssr-only-plugin-vite", "ssg-only-plugin-vite", "ssr-only-plugin-vite-plugin", "ssg-only-plugin-vite-plugin", "ssr-only-plugin-vite-plugin-ripple", "ssg-only-plugin-vite-plugin-ripple"],
+  "author": "Michal Makowski",
+  "license": "ISC",
+  "packageManager": "pnpm@10.10.0",
+  "devDependencies": {
+    "colors": "^1.4.0",
+    "polka": "^0.5.2",
+    "sirv": "^2.0.4",
+    "vite": "^6.0.7",
+    "vite-plugin-ripple": "^0.2.104",
+    "esbuild": "^0.25.10",
+    "ripple": "^0.2.104"
+  }
+}
