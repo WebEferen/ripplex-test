@@ -27,8 +27,8 @@ importers:
         specifier: ^6.0.7
         version: 6.3.6
       vite-plugin-ripple:
-        specifier: ^0.2.103
-        version: 0.2.103
+        specifier: 0.2.109
+        version: 0.2.109
 
 packages:
 
@@ -386,8 +386,8 @@ packages:
     resolution: {integrity: sha512-kr8SKKw94OI+xTGOkfsvwZQ8mWoikZDd2n8XZHjJVZUARZT+4/VV6cacRS6CLsH9bNm+HFIPU1Zx4CnNnb4qlQ==}
     engines: {node: '>=6'}
 
-  vite-plugin-ripple@0.2.103:
-    resolution: {integrity: sha512-kpYxnIUCwWGqgl85YXJirOcbf/ns1C6TLjZfl4Q5O4QPu8ke6dqx+pLsbZ0rwjwxDpg8cAqchYGvwlPL1Wevfg==}
+  vite-plugin-ripple@0.2.109:
+    resolution: {integrity: sha512-FP6/Vrv6Z9OYPdGkf+84Eo0fbwZH7IwGSevaJySPDWliwtKqxIrVWmY7Vi6rFJvrFq6tRptHb7h3jsz+eoy91g==}
 
   vite@6.3.6:
     resolution: {integrity: sha512-0msEVHJEScQbhkbVTb/4iHZdJ6SXp/AvxL2sjwYQFfBqleHtnCqv1J3sa9zbWz/6kW1m9Tfzn92vW+kZ1WV6QA==}
@@ -691,7 +691,7 @@ snapshots:
     dependencies:
       matchit: 1.1.0
 
-  vite-plugin-ripple@0.2.103: {}
+  vite-plugin-ripple@0.2.109: {}
 
   vite@6.3.6:
     dependencies:

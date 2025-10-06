@@ -255,7 +255,7 @@ for (const route of pageRoutes) {
 
 			const clientRoutePath = '/' + path.relative(ROOT_DIR, route.filePath).split(path.sep).join('/');
 
-			const { render } = await vite.ssrLoadModule('ripple/server');
+			const { render, get_css_for_hashes } = await vite.ssrLoadModule('ripple/server');
 			const module = await vite.ssrLoadModule(clientRoutePath);
 			const Component = module.default || module[Object.keys(module)[0]];
 
@@ -263,21 +263,8 @@ for (const route of pageRoutes) {
 				throw new Error(`No component found in ${route.filePath}`);
 			}
 
-			// Check if this is a client-only component
-			const fileContent = fs.readFileSync(route.filePath, 'utf-8');
-			const isClientOnly = /['"]use client['"]/.test(fileContent);
-
-			let rendered;
-			if (isClientOnly) {
-				// For client-only components, don't SSR - just send empty initial state
-				rendered = { head: '', body: '' };
-			} else {
-				// Server-side render the component
-				rendered = await render(Component, { props });
-			}
-
-			head = rendered.head;
-			body = rendered.body;
+			// Server-side render the component
+			const rendered = await render(Component);
 
 			// Create RIPPLE data object with proper JSON serialization
 			const rippleData = {
@@ -294,11 +281,18 @@ for (const route of pageRoutes) {
 				criticalCss = `<style>${cssContent}</style>`;
 			}
 
+			// Get component CSS from the CSS hashes
+			let componentCss = '';
+			if (rendered.css && rendered.css.size > 0) {
+				const cssContent = get_css_for_hashes(rendered.css);
+				if (cssContent) {
+					componentCss = `<style>${cssContent}</style>`;
+				}
+			}
+
 			let html = transformedTemplate;
-			// Inject SSR head just before </head>
-			html = html.replace(/<\/head>/i, `${criticalCss}\n${head}\n${runtimeScript}\n</head>`);
-			// Inject SSR body into the #root element
-			html = html.replace(/(<div\s+id="root"[^>]*>)([\s\S]*?)(<\/div>)/i, `$1${body}$3`);
+			html = html.replace(/<\/head>/i, `${criticalCss}\n${componentCss}\n${rendered.head}\n${runtimeScript}\n</head>`);
+			html = html.replace(/(<div\s+id="root"[^>]*>)([\s\S]*?)(<\/div>)/i, `$1${rendered.body}$3`);
 
 			res.writeHead(200, { 'Content-Type': 'text/html' });
 			const nowNs = process.hrtime.bigint();

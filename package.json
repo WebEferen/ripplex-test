@@ -24,8 +24,8 @@
     "polka": "^0.5.2",
     "sirv": "^2.0.4",
     "vite": "^6.0.7",
-    "vite-plugin-ripple": "^0.2.104",
+    "vite-plugin-ripple": "0.2.109",
     "esbuild": "^0.25.10",
-    "ripple": "^0.2.104"
+    "ripple": "link:../ripple/packages/ripple"
   }
 }
