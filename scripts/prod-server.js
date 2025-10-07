@@ -15,8 +15,8 @@ const routesManifest = JSON.parse(
 	fs.readFileSync(path.join(DIST_DIR, 'routes.json'), 'utf-8')
 );
 
-// Read built index.html template
-const indexPath = path.join(DIST_DIR, 'client', 'index.html');
+// Read built index.html template (from server dir to avoid serving as static file)
+const indexPath = path.join(DIST_DIR, 'server', 'index.html');
 const indexTemplate = fs.readFileSync(indexPath, 'utf-8');
 
 // Optional page middleware
@@ -182,6 +182,14 @@ const serveAssets = sirv(path.join(DIST_DIR, 'client', 'assets'), {
 	immutable: true
 });
 app.use('/assets', serveAssets);
+
+// Serve root-level static files (global.css, favicon, etc.)
+const serveStatic = sirv(path.join(DIST_DIR, 'client'), {
+	dev: false,
+	single: false,
+	maxAge: 3600 // 1 hour for non-hashed files
+});
+app.use(serveStatic);
 
 // Start server
 app.listen(PORT, () => {

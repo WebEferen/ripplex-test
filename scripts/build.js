@@ -61,21 +61,6 @@ async function main() {
 		}
 	}
 
-	// Create HTML template
-	const htmlTemplate = `<!doctype html>
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>RippleX</title>
-	</head>
-	<body>
-		<div id="root"></div>
-		<script type="module" src="/assets/client.js"></script>
-	</body>
-</html>`;
-	fs.writeFileSync(path.join(DIST, 'client', 'index.html'), htmlTemplate);
-
 	// Step 2: Build SSR bundle with esbuild and Ripple plugin
 	console.log(colors.white('2. Building SSR bundle...'));
 
@@ -111,12 +96,38 @@ async function main() {
 		}
 	}
 
-	// Step 3: Production server is ready (no need to copy, CLI will use it from ripplex package)
-	console.log(colors.white('3. Setting up production server...'));
+	// Create HTML template (store in server dir, not client dir to avoid static serving)
+	const htmlTemplate = `<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>RippleX</title>
+		<link rel="stylesheet" href="/global.css">
+	</head>
+	<body>
+		<div id="root"></div>
+		<script type="module" src="/assets/client.js"></script>
+	</body>
+</html>`;
+	fs.writeFileSync(path.join(DIST, 'server', 'index.html'), htmlTemplate);
+
+	// Step 3: Copy public directory to dist/client
+	console.log(colors.white('3. Copying public assets...'));
+	const publicDir = path.join(ROOT, 'public');
+	if (fs.existsSync(publicDir)) {
+		copy(publicDir, path.join(DIST, 'client'));
+		console.log(colors.green('✓ Public assets copied\n'));
+	} else {
+		console.log(colors.gray('  No public directory found\n'));
+	}
+
+	// Step 4: Production server is ready (no need to copy, CLI will use it from ripplex package)
+	console.log(colors.white('4. Setting up production server...'));
 	console.log(colors.green('✓ Production server ready\n'));
 
-	// Step 4: Copy necessary runtime files
-	console.log(colors.white('4. Copying runtime files...'));
+	// Step 5: Copy necessary runtime files
+	console.log(colors.white('5. Copying runtime files...'));
 	const toCopy = ['api', 'middleware.js'];
 	for (const item of toCopy) {
 		const srcPath = path.join(ROOT, item);
