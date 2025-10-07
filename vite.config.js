@@ -5,6 +5,5 @@ export default defineConfig(({ mode }) => ({
 	plugins: [ripple()],
 	resolve: {
 		conditions: ['browser']
-	},
-	assetsInclude: mode === 'production' ? ['**/*.ripple'] : false,
+	}
 }));

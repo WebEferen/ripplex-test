@@ -33,8 +33,14 @@ if (cmd === 'dev') {
 } else if (cmd === 'build') {
 	run('node', [path.join(PKG_ROOT, 'scripts', 'build.js')]);
 } else if (cmd === 'start') {
-	const distServer = path.join(ROOT, 'dist', 'server.js');
-	const serverPath = fs.existsSync(distServer) ? distServer : path.join(PKG_ROOT, 'scripts', 'server.js');
+	// Check if dist directory exists
+	const distDir = path.join(ROOT, 'dist');
+	if (!fs.existsSync(distDir)) {
+		console.error('Error: dist directory not found. Run "ripplex build" first.');
+		process.exit(1);
+	}
+	// Run production server from ripplex package
+	const serverPath = path.join(PKG_ROOT, 'scripts', 'prod-server.js');
 	const env = { NODE_ENV: 'production' };
 	if (port) env.PORT = port;
 	run('node', [serverPath], env);
