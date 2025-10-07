@@ -184,12 +184,13 @@ app.use((req, res, next) => {
 // Register API routes BEFORE Vite middleware to prevent Vite from serving raw file content
 const apiRoutes = getApiRoutes();
 routesScannedNs = process.hrtime.bigint();
+const methods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'];
 for (const route of apiRoutes) {
 	// Handle all HTTP methods for API routes
-	const methods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'];
 
 	methods.forEach(method => {
 		app.add(method, route.path, async (req, res) => {
+			const reqStartNs = process.hrtime.bigint();
 			try {
 				// Use Vite's module loading with cache busting for HMR support
 				const timestamp = Date.now();
@@ -204,6 +205,12 @@ for (const route of apiRoutes) {
 					res.writeHead(500, { 'Content-Type': 'application/json' });
 					res.end(JSON.stringify({ error: 'No default export or method handler in API route' }));
 				}
+
+				// Log API request after handling
+				const nowNs = process.hrtime.bigint();
+				const deltaMs = Number((nowNs - reqStartNs) / 1000000n);
+				const relPath = '/' + path.relative(ROOT_DIR, route.filePath).split(path.sep).join('/');
+				console.log(`${colors.white(req.method)} ${colors.gray(req.url)} ${colors.white('→')} ${colors.gray(relPath)} ${colors.dim('[api]')} ${colors.dim(`+${deltaMs}ms`)}`);
 			} catch (error) {
 				console.error('API route error:', error);
 				res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -212,6 +219,19 @@ for (const route of apiRoutes) {
 		});
 	});
 }
+
+// Catch unmatched API routes (404) - use route handlers instead of middleware
+methods.forEach(method => {
+	app.add(method, '/api/*', (req, res) => {
+		const reqStartNs = process.hrtime.bigint();
+		res.writeHead(404, { 'Content-Type': 'application/json' });
+		res.end(JSON.stringify({ error: 'API route not found' }));
+
+		const nowNs = process.hrtime.bigint();
+		const deltaMs = Number((nowNs - reqStartNs) / 1000000n);
+		console.log(`${colors.white(req.method)} ${colors.gray(req.url)} ${colors.red('✗ not found')} ${colors.dim('[api]')} ${colors.dim(`+${deltaMs}ms`)}`);
+	});
+});
 
 // Use Vite middleware but skip API routes
 app.use((req, res, next) => {

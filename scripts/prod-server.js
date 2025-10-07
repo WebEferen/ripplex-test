@@ -54,12 +54,13 @@ app.use((req, res, next) => {
 });
 
 // Register API routes
+const methods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'];
 for (const route of routesManifest.api) {
-	const methods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'];
 	const apiPath = path.join(DIST_DIR, route.file);
 
 	methods.forEach(method => {
 		app.add(method, route.path, async (req, res) => {
+			const reqStartNs = process.hrtime.bigint();
 			try {
 				const handler = await import(apiPath);
 
@@ -71,6 +72,11 @@ for (const route of routesManifest.api) {
 					res.writeHead(500, { 'Content-Type': 'application/json' });
 					res.end(JSON.stringify({ error: 'No default export or method handler in API route' }));
 				}
+
+				// Log API request after handling
+				const nowNs = process.hrtime.bigint();
+				const deltaMs = Number((nowNs - reqStartNs) / 1000000n);
+				console.log(`${colors.white(req.method)} ${colors.gray(req.url)} ${colors.white('→')} ${colors.gray(route.file)} ${colors.dim('[api]')} ${colors.dim(`+${deltaMs}ms`)}`);
 			} catch (error) {
 				console.error('API route error:', error);
 				res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -173,6 +179,19 @@ for (const route of routesManifest.pages) {
 		}
 	});
 }
+
+// Catch unmatched API routes (404) - use route handlers instead of middleware
+methods.forEach(method => {
+	app.add(method, '/api/*', (req, res) => {
+		const reqStartNs = process.hrtime.bigint();
+		res.writeHead(404, { 'Content-Type': 'application/json' });
+		res.end(JSON.stringify({ error: 'API route not found' }));
+
+		const nowNs = process.hrtime.bigint();
+		const deltaMs = Number((nowNs - reqStartNs) / 1000000n);
+		console.log(`${colors.white(req.method)} ${colors.gray(req.url)} ${colors.red('✗ not found')} ${colors.dim('[api]')} ${colors.dim(`+${deltaMs}ms`)}`);
+	});
+});
 
 // Serve static files (assets, etc.)
 const serveAssets = sirv(path.join(DIST_DIR, 'client', 'assets'), {
