@@ -1,5 +1,5 @@
 {
-  "name": "ripplex",
+  "name": "ripplex-test",
   "version": "1.0.0",
   "description": "RippleX is a Vite plugin for building server-side rendered (SSR) and static site generation (SSG) applications with Ripple.",
   "type": "module",
@@ -26,6 +26,6 @@
     "vite": "^6.0.7",
     "vite-plugin-ripple": "0.2.109",
     "esbuild": "^0.25.10",
-    "ripple": "link:../ripple/packages/ripple"
+    "ripple": "^0.2.121"
   }
 }
